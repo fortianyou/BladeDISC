@@ -426,6 +426,58 @@ bool ConvertAtenFlip(MhloConversionContext& ctx, const torch::jit::Node& node) {
   return true;
 }
 
+bool ConvertAtenFlatten(
+    MhloConversionContext& ctx,
+    const torch::jit::Node& node) {
+  auto loc = GetNodeLocation(ctx, node);
+  auto jit_tensor = node.input(0);
+  auto jit_start_dim = node.input(1);
+  auto jit_end_dim = node.input(2);
+
+  if (!CheckConstAttribute(jit_start_dim, "aten::flatten", "start_dim")) {
+    return false;
+  }
+
+  if (!CheckConstAttribute(jit_end_dim, "aten::flatten", "end_dim")) {
+    return false;
+  }
+
+  auto ml_tensor = ctx.GetMlirValue(jit_tensor);
+  mlir_dim_t rank = GetRankOfMlirValue(ml_tensor);
+  mlir_dim_t start_dim = CastJitConstToInt64(*jit_start_dim);
+  mlir_dim_t end_dim = CastJitConstToInt64(*jit_end_dim);
+
+  start_dim = (start_dim + rank) % rank;
+  end_dim = (end_dim + rank) % rank;
+
+  auto& builder = *ctx.builder;
+  auto result_type = BuildMlirRankedTensorType(builder, *node.output(0));
+  ::llvm::SmallVector<mlir::Value> dim_values;
+
+  for (int64_t idx = 0; idx < rank; ++idx) {
+    auto dz =
+        builder.create<mlir::tensor::DimOp>(loc, ml_tensor, idx).getResult();
+    if (idx > start_dim && idx < end_dim + 1) {
+      dim_values[start_dim] =
+          BuildStdMulSigned(builder, loc, dim_values[start_dim], dz);
+    } else {
+      dim_values.push_back(dz);
+    }
+  }
+  std::cout << "start_dim: " << start_dim << ", end_dim: " << end_dim
+            << std::endl;
+  std::cout << "rank: " << result_type.getRank()
+            << ", ndims: " << dim_values.size() << std::endl;
+  mlir::Value new_shape =
+      builder.create<mlir::tensor::FromElementsOp>(loc, dim_values);
+  TORCH_CHECK(result_type.getRank() == dim_values.size());
+  // if reshape output is a tensor
+  auto result = builder.create<mlir::mhlo::DynamicReshapeOp>(
+      loc, result_type, ml_tensor, new_shape);
+  ctx.value_map[node.output(0)] = result.getResult();
+  return true;
+}
+
 bool ConvertAtenViewAs(
     MhloConversionContext& ctx,
     const torch::jit::Node& node) {
@@ -570,7 +622,10 @@ auto mhlo_conversion =
             ConvertAtenFlip)
         .pattern(
             "aten::chunk(Tensor self, int chunks, int dim=0) -> (Tensor[])",
-            ConvertAtenChunk);
+            ConvertAtenChunk)
+        .pattern(
+            "aten::flatten.using_ints(Tensor(a) self, int start_dim=0, int end_dim=-1) -> Tensor(a)",
+            ConvertAtenFlatten);
 } // namespace
 
 } // namespace blade
