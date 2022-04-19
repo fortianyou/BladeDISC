@@ -56,22 +56,24 @@ torch::List<torch::Tensor> EngineClass::Execute(
   TORCH_BLADE_RECORD_FUNCTION(attr_debug_name_, record_inputs);
 
   torch::List<torch::Tensor> outputs;
-  // do inference
-  if (engine_->ShouldFallback(inputs)) {
-    outputs = Fallback(inputs);
-  } else {
-    try {
-      outputs = engine_->Execute(inputs);
-    } catch (const std::runtime_error& error) {
-      const auto& enable_fallback =
-          env::ReadBoolFromEnvVar("TORCH_BLADE_ENABLE_RUNTIME_FALLBACK", true);
-      if (enable_fallback) {
-        outputs = Fallback(inputs);
-      } else {
-        throw error;
-      }
-    }
-  }
+  outputs = Fallback(inputs);
+  // // do inference
+  // if (engine_->ShouldFallback(inputs)) {
+  //   outputs = Fallback(inputs);
+  // } else {
+  //   try {
+  //     outputs = engine_->Execute(inputs);
+  //   } catch (const std::runtime_error& error) {
+  //     const auto& enable_fallback =
+  //         env::ReadBoolFromEnvVar("TORCH_BLADE_ENABLE_RUNTIME_FALLBACK",
+  //         true);
+  //     if (enable_fallback) {
+  //       outputs = Fallback(inputs);
+  //     } else {
+  //       throw error;
+  //     }
+  //   }
+  // }
 
   if (GetRecordClusterIOFlag()) {
     // Note:
