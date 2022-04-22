@@ -200,11 +200,13 @@ torch::List<torch::Tensor> RalContext::CreateAndBindingOutputs(
     torch::Tensor out_tensor = IsEmptyTensor(out_buf->shape())
         ? torch::zeros(out_buf->shape(), option)
         : torch::from_blob(
-              const_cast<void*>(out_buf->data()), out_buf->shape(), option)
-              .clone();
-    //           const_cast<void*>(out_buf->data()), out_buf->shape(),
-    //           c10::free_cpu, option);
-    // out_buf->release();
+              // const_cast<void*>(out_buf->data()), out_buf->shape(), option)
+              // .clone();
+              const_cast<void*>(out_buf->data()),
+              out_buf->shape(),
+              c10::free_cpu,
+              option);
+    out_buf->release();
     outputs.push_back(out_tensor);
   }
   return outputs;
