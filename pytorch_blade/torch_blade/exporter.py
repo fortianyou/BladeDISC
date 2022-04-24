@@ -17,7 +17,7 @@ from typing import Tuple, List
 
 import torch
 import torch.nn as nn
-
+import torch_blade
 import torch_blade.pass_manager as pm
 from torch_blade.config import Config
 from torch_blade.logging import logger
@@ -136,6 +136,12 @@ def export(model, allow_tracing=None, model_inputs=None):
             if torchscript is exported successfully, then it will be returned.
             else return the original model.
     """
+    if not torch_blade.version.cuda_available:
+        if not isinstance(model, torch.jit.ScriptModule):
+            model = torch.quantization.quantize_dynamic(
+               model.eval(), {torch.nn.GRU}, dtype=torch.qint8
+            )
+
     def wrap_forward(name, func):
         """
         Wrap forward function of nn.Module in order to record its input
