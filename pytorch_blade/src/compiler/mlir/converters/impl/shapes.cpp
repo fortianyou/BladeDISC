@@ -402,6 +402,21 @@ bool ConvertAtenIndexSelect(
   return true;
 }
 
+bool ConvertAtenGather(
+    MhloConversionContext& ctx,
+    const torch::jit::Node& node) {
+  auto loc = GetNodeLocation(ctx, node);
+  auto input = ctx.GetMlirValue(node.input(0));
+  auto jit_dim = node.input(1);
+  auto dim = CastJitConstToInt64(*jit_dim);
+  auto index = ctx.GetMlirValue(node.input(2));
+
+  auto& builder = *ctx.builder;
+  ctx.value_map[node.output(0)] =
+      mlir::mhlo::BuildGather(builder, loc, input, index, dim);
+  return true;
+}
+
 bool ConvertAtenFlip(MhloConversionContext& ctx, const torch::jit::Node& node) {
   const auto& loc = GetNodeLocation(ctx, node);
   auto input = ctx.GetMlirValue(node.input(0));
@@ -628,7 +643,11 @@ auto mhlo_conversion =
             ConvertAtenChunk)
         .pattern(
             "aten::flatten.using_ints(Tensor(a) self, int start_dim=0, int end_dim=-1) -> Tensor(a)",
-            ConvertAtenFlatten);
+            ConvertAtenFlatten)
+        .pattern(
+            "aten::gather(Tensor self, int dim, Tensor index, *, bool sparse_grad=False) -> Tensor",
+            ConvertAtenGather)
+        ;
 } // namespace
 
 } // namespace blade

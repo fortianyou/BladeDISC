@@ -149,6 +149,21 @@ bool ConvertAtenGelu(MhloConversionContext& ctx, const torch::jit::Node& node) {
   return true;
 }
 
+bool ConvertAtenSilu(MhloConversionContext& ctx, const torch::jit::Node& node) {
+  auto loc = GetNodeLocation(ctx, node);
+  auto torch_inp = node.input(0);
+  auto torch_out = node.output(0);
+  auto mlir_val = ctx.GetMlirValue(torch_inp);
+  auto builder = *ctx.builder;
+  auto sigmoid  =
+      mlir::mhlo::BuildSigmoid(builder, loc, mlir_val);
+  auto elem_type = mlir::mhlo::GetMlirTensorElemType(mlir_val);
+  auto silu = mlir::mhlo::BuildMlirBinaryOp<mlir::chlo::BroadcastMulOp>(
+      builder, loc, mlir_val, sigmoid, elem_type);
+  ctx.value_map[torch_out] = silu;
+  return true;
+}
+
 namespace {
 auto mhlo_conversion =
     MhloConversionPatternRegister()
@@ -162,7 +177,9 @@ auto mhlo_conversion =
             ConvertAtenHardtanh)
         .pattern("aten::sigmoid(Tensor self) -> Tensor", ConvertAtenSigmoid)
         .pattern("aten::glu(Tensor self, int dim=-1) -> Tensor", ConvertAtenGlu)
-        .pattern("aten::gelu(Tensor self) -> Tensor", ConvertAtenGelu);
+        .pattern("aten::gelu(Tensor self) -> Tensor", ConvertAtenGelu)
+        .pattern("aten::silu(Tensor self) -> Tensor", ConvertAtenSilu)
+;
 } // namespace
 } // namespace blade
 } // namespace torch
