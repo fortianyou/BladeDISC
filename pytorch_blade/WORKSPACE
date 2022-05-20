@@ -117,6 +117,18 @@ new_local_repository(
     path = "../../platform_alibaba/blade_gemm"
 )
 
+new_local_repository(
+    name = "torch-mlir-raw",
+    build_file_content = "# empty",
+    path = "torch-mlir"
+)
+
+load("@torch-mlir-raw//utils/bazel:configure.bzl", "torch_mlir_configure")
+
+torch_mlir_configure(
+  name = "torch-mlir"
+)
+
 load("//bazel:platform_alibaba/workspace.bzl", "alibaba_workspace")
 alibaba_workspace()
 
